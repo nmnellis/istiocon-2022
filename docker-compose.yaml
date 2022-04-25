@@ -7,13 +7,13 @@ services:
     entrypoint:
       - envoy
       - --config-path
-      - /etc/config/envoy.yaml
-      # enable envoy debugging
-      # - -l
-      # - debug
+      # - /etc/config/envoy-http.yaml
+      - /etc/config/envoy-json-to-grpc.yaml
     volumes:
-      - ./3-local-machine/:/etc/config/
-      - ./3-local-machine/certs/vm:/certs/:ro
+      # envoy configuration yaml
+      - ./4-local-machine/:/etc/config/
+      # client certificates
+      - ./certs:/certs/:ro
     ports:
       # local port to listen on
-      - "8080:8080"
+      - "8000:8000"

@@ -202,7 +202,7 @@ kubectl label namespace istiocon istio-injection=enabled
 # http application
 kubectl apply -n istiocon -f 2-istio-deployment/apps/frontend.yaml
 # grpc application
-kubectl apply -n istiocon -f 2-istio-deployment/apps/fortune-teller/app.yaml
+kubectl apply -n istiocon -f 2-istio-deployment/apps/fortune.yaml
 ```
 
 
@@ -216,7 +216,6 @@ tee 2-istio-deployment/eastwest-gateway-values.yaml << EOF
 name: istio-eastwestgateway
 labels:
   istio: eastwestgateway
-  topology.istio.io/network: mesh-network
 service:
   ports:
   - name: tls
@@ -224,7 +223,6 @@ service:
     targetPort: 15443
 env:
   ISTIO_META_ROUTER_MODE: "sni-dnat"
-  ISTIO_META_REQUESTED_NETWORK_VIEW: "mesh-network"
 EOF
 
 
@@ -254,10 +252,67 @@ spec:
       tls:
         mode: AUTO_PASSTHROUGH
       hosts:
-        - "*.local"
+        - '*istiocon.svc.cluster.local'
+        - '*solo.io'
 EOF
 ```
 
+* Inspect the gateway listeners
 
+```sh
+POD_NAME=$(kubectl get pods --namespace istio-system -l "app=istio-eastwestgateway" -o jsonpath="{.items[0].metadata.name}")
+
+istioctl proxy-config listeners $POD_NAME -n istio-system
+
+```
+
+* Print SNI Matchers
+```sh
+POD_NAME=$(kubectl get pods --namespace istio-system -l "app=istio-eastwestgateway" -o jsonpath="{.items[0].metadata.name}") 
+
+istioctl proxy-config listeners $POD_NAME -n istio-system -o json | jq '.[].filterChains[].filterChainMatch.serverNames'
+```
+
+
+```sh
+[
+  "outbound_.50051_._.fortune-teller.istiocon.svc.cluster.local"
+]
+[
+  "outbound_.8080_._.frontend.istiocon.svc.cluster.local"
+]
+[
+  "outbound_.50051_._.fortunes.solo.io"
+]
+[
+  "outbound_.8080_._.frontend.solo.io"
+]
+```
+
+
+* Example TCP Passthough Listener (Condensed)
+```yaml
+  - filterChainMatch:
+      applicationProtocols:
+      - istio
+      - istio-peer-exchange
+      - istio-http/1.0
+      - istio-http/1.1
+      - istio-h2
+      serverNames:
+      - outbound_.8080_._.frontend.solo.io
+    - name: envoy.filters.network.tcp_proxy
+      typedConfig:
+        '@type': type.googleapis.com/envoy.extensions.filters.network.tcp_proxy.v3.TcpProxy
+        cluster: outbound_.8080_._.frontend.solo.io
+        statPrefix: outbound_.8080_._.frontend.solo.io
+  listenerFilters:
+  - name: envoy.filters.listener.tls_inspector
+    typedConfig:
+      '@type': type.googleapis.com/envoy.extensions.filters.listener.tls_inspector.v3.TlsInspector
+  name: 0.0.0.0_15443
+  trafficDirection: OUTBOUND
+
+```
 
 ## Local Machine Setup

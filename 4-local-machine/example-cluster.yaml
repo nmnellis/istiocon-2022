@@ -1,0 +1,40 @@
+  - name: frontend
+    type: STRICT_DNS
+    lb_policy: ROUND_ROBIN
+    connect_timeout: 10s
+    load_assignment:
+      cluster_name: frontend
+      ###########################
+      # Gateway Endpoints
+      ###########################
+      endpoints:
+      - lb_endpoints:
+        - endpoint:
+            address:
+              socket_address:
+                address: <gateway_ip>
+                port_value: 15443
+    transport_socket:
+      name: envoy.transport_sockets.tls
+      typed_config:
+        "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
+      ###########################
+      # SNI
+      ###########################
+        sni: outbound_.8080_._.frontend.solo.io
+      ###########################
+      # mTLS
+      ###########################
+        common_tls_context:
+          alpnProtocols:
+          - istio-peer-exchange
+          - istio
+          - h2
+          tls_certificates:
+          - certificate_chain:
+              filename: /certs/cert.pem
+            private_key:
+              filename: /certs/key.pem
+          validation_context:
+            trusted_ca:
+              filename: /certs/ca-cert.pem
