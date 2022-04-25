@@ -1,0 +1,12 @@
+name: istio-eastwestgateway
+labels:
+  istio: eastwestgateway
+  topology.istio.io/network: mesh-network
+service:
+  ports:
+  - name: tls
+    port: 15443
+    targetPort: 15443
+env:
+  ISTIO_META_ROUTER_MODE: "sni-dnat"
+  ISTIO_META_REQUESTED_NETWORK_VIEW: "mesh-network"

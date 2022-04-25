@@ -1,0 +1,19 @@
+version: "3.7"
+services:
+  envoy:
+    # required to use istio build because you need the builtin istio envoy filters
+    image: gcr.io/istio-release/proxyv2:1.12.6
+    # override the default entrypoint to start envoy directly
+    entrypoint:
+      - envoy
+      - --config-path
+      - /etc/config/envoy.yaml
+      # enable envoy debugging
+      # - -l
+      # - debug
+    volumes:
+      - ./3-local-machine/:/etc/config/
+      - ./3-local-machine/certs/vm:/certs/:ro
+    ports:
+      # local port to listen on
+      - "8080:8080"
