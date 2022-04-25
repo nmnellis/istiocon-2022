@@ -7,8 +7,8 @@ services:
     entrypoint:
       - envoy
       - --config-path
-      # - /etc/config/envoy-http.yaml
-      - /etc/config/envoy-json-to-grpc.yaml
+      - /etc/config/envoy-http.yaml
+      # - /etc/config/envoy-json-to-grpc.yaml
     volumes:
       # envoy configuration yaml
       - ./4-local-machine/:/etc/config/
