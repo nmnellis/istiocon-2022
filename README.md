@@ -351,9 +351,6 @@ cat 3-local-machine/templates/envoy-http.yaml.tmpl | envsubst > 3-local-machine/
 cat 3-local-machine/templates/envoy-json-to-grpc.yaml.tmpl | envsubst > 3-local-machine/envoy-json-to-grpc.yaml
 ``
 
-sed -rn '/address: ([0-9]{1,3}\.){3}[0-9]{1,3}/p' 3-local-machine/envoy-http.yaml
-
-
 ### Envoy Configuration
 
 ![Local Machine Architecture](./images/port-per-service.png)
@@ -397,8 +394,8 @@ static_resources:
           - name: envoy.filters.http.router
 ```
 
+* Transformations - manipulate the traffic
 
-* Transformations - manipulate the traffic 
 ```yaml
 ...
           http_filters:
@@ -419,6 +416,7 @@ static_resources:
 ```
 
 * Clusters - connection setting for upstream service
+
 ```yaml
   clusters:
   - name: frontend
