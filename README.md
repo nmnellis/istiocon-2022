@@ -484,3 +484,10 @@ grpcurl --plaintext -protoset 3-local-machine/fortune.pb -d '{"user_id": "nick"}
 ```sh
 curl -v "http://localhost:8001/v1/fortune/nick"
 ```
+
+
+
+## Cleanup
+```
+gcloud container clusters delete "istiocon-2022-demo" --project="$GCP_PROJECT" --zone $GCP_ZONE
+```
