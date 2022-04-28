@@ -125,7 +125,6 @@ EOF
 >since cert-manager secrets are not compatible with Istio currently we need to reconstruct the secret by downloading the secret and creating a new one in istio-system
 
 ```sh
-mkdir ./certs
 
 # download the secret in the istio format
 kubectl get secret istio-cacerts -n cert-manager -o json | jq '.data."tls.crt"' -r | base64 --decode > ./certs/ca-cert.pem
@@ -145,6 +144,7 @@ kubectl create secret generic cacerts -n istio-system \
 ```
 
 6. Generate our local machine certificate using cert-manager
+
 ```sh
 kubectl apply -f- <<EOF
 apiVersion: cert-manager.io/v1
@@ -177,10 +177,7 @@ kubectl get secret local-machine-istio-proxy -n cert-manager -o json | jq '.data
 kubectl get secret local-machine-istio-proxy -n cert-manager -o json | jq '.data."ca.crt"' -r | base64 --decode > ./certs/local-machine-ca-cert.pem
 ```
 
-
 ## Install Istio and Applications
-
-
 
 1. Sync the Istio Helm repositories
 
@@ -190,6 +187,7 @@ helm repo update
 ```
 
 2. Install Istio Core (CRDs, istiod)
+
 ```sh
 # Install Istio CRDS
 helm install istio-base istio/base \
@@ -206,6 +204,7 @@ helm install istiod istio/istiod \
 ```
 
 3. Install Applications
+
 ```sh
 kubectl create namespace istiocon
 kubectl label namespace istiocon istio-injection=enabled
@@ -245,6 +244,7 @@ helm install istio-eastwestgateway istio/gateway \
 ```
 
 2. Create Gateway resource for port 15443
+
 ```sh
 kubectl apply -f- <<EOF
 apiVersion: networking.istio.io/v1alpha3
@@ -269,10 +269,10 @@ EOF
 ```
 
 3. Add ServiceEntries for the applications
-```
+
+```sh
 kubectl apply -f 2-istio-deployment/service-entries.yaml
 ```
-
 
 * Inspect the gateway listeners
 
@@ -284,12 +284,12 @@ istioctl proxy-config listeners $POD_NAME -n istio-system
 ```
 
 * Print SNI Matchers
+
 ```sh
 POD_NAME=$(kubectl get pods --namespace istio-system -l "app=istio-eastwestgateway" -o jsonpath="{.items[0].metadata.name}") 
 
 istioctl proxy-config listeners $POD_NAME -n istio-system -o json | jq '.[].filterChains[].filterChainMatch.serverNames'
 ```
-
 
 ```sh
 [
@@ -312,7 +312,7 @@ istioctl proxy-config listeners $POD_NAME -n istio-system -o json | jq '.[].filt
 ```sh
 POD_NAME=$(kubectl get pods --namespace istio-system -l "app=istio-eastwestgateway" -o jsonpath="{.items[0].metadata.name}") 
 
-istioctl proxy-config listeners $POD_NAME -n istio-system -o yaml --address frontend.solo.io | less
+istioctl proxy-config listeners $POD_NAME -n istio-system -o yaml --port 15443 | less
 ```
 
 ```yaml
@@ -341,12 +341,25 @@ istioctl proxy-config listeners $POD_NAME -n istio-system -o yaml --address fron
 
 ## Local Machine Setup
 
+In order to connect to the gateway we need to obtain the gateways external IP and set it in the envoy configurations
+
+```sh
+export GATEWAY_IP=$(kubectl get svc -n istio-system istio-eastwestgateway -o jsonpath="{.status.loadBalancer.ingress[0].ip}")
+echo "Eastwest gateway located at: $GATEWAY_IP"
+
+cat 3-local-machine/templates/envoy-http.yaml.tmpl | envsubst > 3-local-machine/envoy-http.yaml
+cat 3-local-machine/templates/envoy-json-to-grpc.yaml.tmpl | envsubst > 3-local-machine/envoy-json-to-grpc.yaml
+``
+
+sed -rn '/address: ([0-9]{1,3}\.){3}[0-9]{1,3}/p' 3-local-machine/envoy-http.yaml
+
 
 ### Envoy Configuration
 
 ![Local Machine Architecture](./images/port-per-service.png)
 
 * Listener - Define the port istio-proxy should listen to
+
 ```yaml
 static_resources:
   listeners:
@@ -360,6 +373,7 @@ static_resources:
 ```
 
 * Routes - match on traffic and route to a "Cluster"
+
 ```yaml
     filter_chains:
     - filters:
