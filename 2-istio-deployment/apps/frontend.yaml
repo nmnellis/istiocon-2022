@@ -1,0 +1,56 @@
+##################################################################################################
+# Echo Frontend
+##################################################################################################
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend
+  labels:
+    app: frontend
+    service: frontend
+spec:
+  ports:
+  - port: 8080
+    name: http
+  selector:
+    app: frontend
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: frontend
+  labels:
+    account: frontend
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  labels:
+    app: frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+    spec:
+      serviceAccountName: frontend
+      containers:
+      - name: frontend
+        image: ghcr.io/nmnellis/istio-echo:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8080
+        args:
+          - --name
+          - frontend-
+          - --port
+          - "8080"
+          - --version
+          - v1
+          - --cluster
+          - istiocon

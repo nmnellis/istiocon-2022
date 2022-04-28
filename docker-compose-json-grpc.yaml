@@ -1,0 +1,19 @@
+version: "3.7"
+services:
+  envoy:
+    # required to use istio build because you need the builtin istio envoy filters
+    image: gcr.io/istio-release/proxyv2:1.12.6
+    # override the default entrypoint to start envoy directly
+    entrypoint:
+      - envoy
+      - --config-path
+      - /etc/config/envoy-json-to-grpc.yaml
+    volumes:
+      # envoy configuration yaml
+      - ./3-local-machine/:/etc/config/
+      # client certificates
+      - ./certs:/certs/:ro
+    ports:
+      # local port to listen on
+      - "8000:8000" # HTTP Frontend
+      - "8001:8001" # GRPC-to-JSON Fortune Teller

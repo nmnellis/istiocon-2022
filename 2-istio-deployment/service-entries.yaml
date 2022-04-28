@@ -1,0 +1,38 @@
+---
+apiVersion: networking.istio.io/v1beta1
+kind: ServiceEntry
+metadata:
+  name: fortune-teller
+  namespace: istiocon
+spec:
+  hosts:
+  - fortunes.solo.io
+  location: MESH_INTERNAL
+  ports:
+  - number: 50051
+    name: grpc
+    protocol: GRPC
+    targetPort: 50051
+  resolution: STATIC
+  workloadSelector:
+    labels:
+      app: fortune-teller
+---
+apiVersion: networking.istio.io/v1beta1
+kind: ServiceEntry
+metadata:
+  name: frontend
+  namespace: istiocon
+spec:
+  hosts:
+  - frontend.solo.io
+  location: MESH_INTERNAL
+  ports:
+  - number: 8080
+    name: http
+    protocol: HTTP
+    targetPort: 8080
+  resolution: STATIC
+  workloadSelector:
+    labels:
+      app: frontend
