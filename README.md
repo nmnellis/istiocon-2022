@@ -453,8 +453,9 @@ curl -v "http://localhost:8000/info"
 ```
 
 
+![Istio CA Certs Architecture](./images/transformations.png)
 
-3. Run the HTTP demo
+3. Run the JSON to GRPC demo
 ```sh
 docker-compose -f docker-compose-json-grpc.yaml up
 ```
