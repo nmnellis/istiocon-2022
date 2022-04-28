@@ -29,15 +29,9 @@ static_resources:
               routes:
                 # Route /frontend http requests to frontend cluster
               - match:
-                  prefix: "/frontend"
+                  prefix: "/"
                 route:
                   cluster: frontend
-                # match on grpc or http requests matched in the proto (/v1/fortune/{user_id})
-              - match:
-                  prefix: "/build.stack.fortune.FortuneTeller"
-                  grpc: {}  #grpc:{} means that requests are only forwarded if they are found in the grpc service definition, returning 404 for others
-                route:
-                  cluster: fortune-teller
           http_filters:
           - name: envoy.filters.http.router
   clusters:
@@ -56,23 +50,8 @@ static_resources:
             address:
               socket_address:
                 # eastwestgateway ip address
-                # address: $GATEWAY_IP
-                address: 35.194.94.205
+                address: 34.86.78.208
                 port_value: 15443
-    filters:
-    # used for Istio stats information
-    - name: istio.metadata_exchange
-      typedConfig:
-        '@type': type.googleapis.com/envoy.tcp.metadataexchange.config.MetadataExchange
-        protocol: istio-peer-exchange
-    metadata:
-      filterMetadata:
-        istio:
-          default_original_port: 8080
-          services:
-          - host: frontend.solo.io
-            name: frontend.solo.io
-            namespace: istiocon
     transport_socket:
       name: envoy.transport_sockets.tls
       typed_config:

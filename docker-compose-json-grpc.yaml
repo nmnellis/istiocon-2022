@@ -7,13 +7,13 @@ services:
     entrypoint:
       - envoy
       - --config-path
-      - /etc/config/envoy-http.yaml
-      # - /etc/config/envoy-json-to-grpc.yaml
+      - /etc/config/envoy-json-to-grpc.yaml
     volumes:
       # envoy configuration yaml
-      - ./4-local-machine/:/etc/config/
+      - ./3-local-machine/:/etc/config/
       # client certificates
       - ./certs:/certs/:ro
     ports:
       # local port to listen on
-      - "8000:8000"
+      - "8000:8000" # HTTP Frontend
+      - "8001:8001" # GRPC-to-JSON Fortune Teller

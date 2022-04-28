@@ -1,5 +1,6 @@
 # Istiocon 2022 - Join locally, learn globally
 
+![Local Machine Architecture](./images/local-machine-arch.png)
 
 ## Kubernetes Cluster
 If you need to setup a kubernetes cluster you can use the below configuration in Google Cloud to get one. 
@@ -14,6 +15,8 @@ gcloud container clusters create "istiocon-2022-demo" \
 ```
 
 ## Certificates
+
+![Istio CA Certs Architecture](./images/cert-manager.png)
 
 1. Generate `root-ca`  and copt to kubernetes from the `1-certificates` folder
 
@@ -114,6 +117,9 @@ spec:
 EOF
 ```
 
+![Istio CA Certs Architecture](./images/istio-cacerts.png)
+
+
 5. Copy istio-cacerts to `istio-system`
 
 >since cert-manager secrets are not compatible with Istio currently we need to reconstruct the secret by downloading the secret and creating a new one in istio-system
@@ -122,12 +128,14 @@ EOF
 mkdir ./certs
 
 # download the secret in the istio format
-kubectl get secret istio-cacerts -n istio-system -o json | jq '.data."tls.crt"' -r | base64 --decode > ./certs/ca-cert.pem
-kubectl get secret istio-cacerts -n istio-system -o json | jq '.data."tls.key"' -r | base64 --decode > ./certs/ca-key.pem
-kubectl get secret istio-cacerts -n istio-system -o json | jq '.data."ca.crt"' -r | base64 --decode > ./certs/root-cert.pem
-kubectl get secret istio-cacerts -n istio-system -o json | jq '.data."tls.crt"' -r | base64 --decode > ./certs/cert-chain.pem
-kubectl get secret istio-cacerts -n istio-system -o json | jq '.data."ca.crt"' -r | base64 --decode >> ./certs/cert-chain.pem
+kubectl get secret istio-cacerts -n cert-manager -o json | jq '.data."tls.crt"' -r | base64 --decode > ./certs/ca-cert.pem
+kubectl get secret istio-cacerts -n cert-manager -o json | jq '.data."tls.key"' -r | base64 --decode > ./certs/ca-key.pem
+kubectl get secret istio-cacerts -n cert-manager -o json | jq '.data."ca.crt"' -r | base64 --decode > ./certs/root-cert.pem
+kubectl get secret istio-cacerts -n cert-manager -o json | jq '.data."tls.crt"' -r | base64 --decode > ./certs/cert-chain.pem
+kubectl get secret istio-cacerts -n cert-manager -o json | jq '.data."ca.crt"' -r | base64 --decode >> ./certs/cert-chain.pem
 
+
+kubectl create namespace istio-system
 # create the istio secrets from the download files
 kubectl create secret generic cacerts -n istio-system \
       --from-file=./certs/ca-cert.pem \
@@ -172,6 +180,8 @@ kubectl get secret local-machine-istio-proxy -n cert-manager -o json | jq '.data
 
 ## Install Istio and Applications
 
+
+
 1. Sync the Istio Helm repositories
 
 ```sh
@@ -208,6 +218,7 @@ kubectl apply -n istiocon -f 2-istio-deployment/apps/fortune.yaml
 
 ## Istio Configuration for Local Machine
 
+![Istio Installations](./images/istio-and-applications.png)
 
 1. Deploy the eastwest gateway
 
@@ -257,6 +268,12 @@ spec:
 EOF
 ```
 
+3. Add ServiceEntries for the applications
+```
+kubectl apply -f 2-istio-deployment/service-entries.yaml
+```
+
+
 * Inspect the gateway listeners
 
 ```sh
@@ -291,6 +308,13 @@ istioctl proxy-config listeners $POD_NAME -n istio-system -o json | jq '.[].filt
 
 
 * Example TCP Passthough Listener (Condensed)
+
+```sh
+POD_NAME=$(kubectl get pods --namespace istio-system -l "app=istio-eastwestgateway" -o jsonpath="{.items[0].metadata.name}") 
+
+istioctl proxy-config listeners $POD_NAME -n istio-system -o yaml --address frontend.solo.io | less
+```
+
 ```yaml
   - filterChainMatch:
       applicationProtocols:
@@ -316,3 +340,147 @@ istioctl proxy-config listeners $POD_NAME -n istio-system -o json | jq '.[].filt
 ```
 
 ## Local Machine Setup
+
+
+### Envoy Configuration
+
+![Local Machine Architecture](./images/port-per-service.png)
+
+* Listener - Define the port istio-proxy should listen to
+```yaml
+static_resources:
+  listeners:
+  - address:
+    # listen for traffic on port 8000
+      socket_address:
+        address: 0.0.0.0
+        port_value: 8000
+    filter_chains:
+...
+```
+
+* Routes - match on traffic and route to a "Cluster"
+```yaml
+    filter_chains:
+    - filters:
+      - name: envoy.filters.network.http_connection_manager
+        typed_config:
+          '@type': type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+          ...
+          route_config:
+            name: local_route
+            virtual_hosts:
+            - name: routes
+              domains:
+              - "*"
+              routes:
+                # Route /frontend http requests to frontend cluster
+              - match:
+                  prefix: "/"
+                route:
+                  cluster: frontend
+          http_filters:
+          - name: envoy.filters.http.router
+```
+
+
+* Transformations - manipulate the traffic 
+```yaml
+...
+          http_filters:
+          # Enable grpc/json transcoding for the build.stack.fortune.FortuneTeller service
+          - name: envoy.filters.http.grpc_json_transcoder
+            # https://www.envoyproxy.io/docs/envoy/latest/api-v3/extensions/filters/http/grpc_json_transcoder/v3/transcoder.proto#extensions-filters-http-grpc-json-transcoder-v3-grpcjsontranscoder
+            typed_config:
+              "@type": type.googleapis.com/envoy.extensions.filters.http.grpc_json_transcoder.v3.GrpcJsonTranscoder
+              proto_descriptor: "/etc/config/fortune.pb"
+              services: ["build.stack.fortune.FortuneTeller"]
+              print_options:
+                add_whitespace: true
+                always_print_primitive_fields: true
+                always_print_enums_as_ints: false
+                preserve_proto_field_names: false
+              convert_grpc_status: true
+          - name: envoy.filters.http.router
+```
+
+* Clusters - connection setting for upstream service
+```yaml
+  clusters:
+  - name: frontend
+    type: STRICT_DNS
+    lb_policy: ROUND_ROBIN
+    connect_timeout: 10s
+    load_assignment:
+      cluster_name: frontend
+      endpoints:
+      - lb_endpoints:
+        - endpoint:
+            address:
+              socket_address:
+                # eastwestgateway ip address
+                address: 34.86.78.208
+                port_value: 15443
+    transport_socket:
+      name: envoy.transport_sockets.tls
+      typed_config:
+        "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
+        sni: outbound_.8080_._.frontend.solo.io
+        common_tls_context:
+          alpnProtocols:
+          - istio-peer-exchange
+          - istio
+          tls_certificates:
+          - certificate_chain:
+              filename: /certs/local-machine-cert.pem
+            private_key:
+              filename: /certs/local-machine-key.pem
+          validation_context:
+            trusted_ca:
+              filename: /certs/local-machine-ca-cert.pem
+```
+
+### Demo
+
+1. Run the HTTP demo
+```sh
+docker-compose -f docker-compose-http.yaml up
+```
+
+2. Call the container on port 8000
+```sh
+curl -v "http://localhost:8000/info"
+```
+
+
+
+3. Run the HTTP demo
+```sh
+docker-compose -f docker-compose-json-grpc.yaml up
+```
+
+4. Call the container on port 8001 using grpc
+
+```sh
+grpcurl --plaintext -protoset 3-local-machine/fortune.pb localhost:8001 describe                                  
+```
+
+```proto
+build.stack.fortune.FortuneTeller is a service:
+service FortuneTeller {
+  rpc Predict ( .build.stack.fortune.PredictionRequest ) returns ( .build.stack.fortune.PredictionResponse ) {
+    option (.google.api.http) = { get:"/v1/fortune/{user_id}"  };
+  }
+}
+```
+
+
+```sh
+grpcurl --plaintext -protoset 3-local-machine/fortune.pb -d '{"user_id": "nick"}' localhost:8001 build.stack.fortune.FortuneTeller/Predict
+```
+
+
+5. same call using REST / JSON
+```sh
+curl -v "http://localhost:8001/v1/fortune/nick"
+```
