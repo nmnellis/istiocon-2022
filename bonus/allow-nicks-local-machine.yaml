@@ -1,0 +1,15 @@
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: local-machine-fortune-teller
+  namespace: istiocon
+spec:
+  selector:
+    matchLabels:
+      app: fortune-teller
+  action: ALLOW
+  rules:
+  - from:
+    - source:
+        principals: ["local-machines.solo.io/ns/local-machines/sa/nicks-local-machine"]
+---
